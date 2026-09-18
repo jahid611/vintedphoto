@@ -90,6 +90,29 @@ Les deux scènes de test sont choisies pour les deux pièges opposés :
 
 Variables : `BASE_URL`, `CHROMIUM_PATH`.
 
+### Le schéma
+
+Le schéma se teste sur un Postgres local jetable, sans jamais toucher au projet
+hébergé — il faut seulement `postgresql` installé :
+
+```bash
+npm run db-test
+```
+
+`supabase/tests/stub.sql` recrée le minimum de l'environnement Supabase (schéma
+`auth`, `auth.uid()`, les rôles `anon` / `authenticated` / `service_role`), puis
+la migration est appliquée **deux fois** (elle doit être idempotente) avant les
+17 assertions de `supabase/tests/schema.test.sql` :
+
+- l'inscription crédite bien 10 photos et ouvre l'historique ;
+- le débit refuse un solde insuffisant et un appel non authentifié ;
+- un compte ne voit ni le profil ni l'historique du voisin ;
+- un lot ne peut être ni créé ni réattribué au nom de quelqu'un d'autre ;
+- un client ne peut pas appeler la recharge, le webhook si — et un rejeu Stripe
+  ne crédite pas deux fois ;
+- toutes les clés étrangères sont indexées, toutes les tables ont la RLS, et
+  aucune policy ne rappelle `auth.uid()` ligne par ligne.
+
 ## Passer en production
 
 ### 1. Supabase
@@ -99,7 +122,8 @@ Le solde doit faire autorité côté serveur : en mode démo il suffit d'éditer
 
 1. Créer un projet sur [supabase.com](https://supabase.com).
 2. Appliquer `supabase/migrations/0001_init.sql` (SQL Editor, ou
-   `supabase db push`).
+   `supabase db push`). Le fichier est idempotent : une application
+   interrompue se relance sans rien nettoyer à la main.
 3. Activer les **connexions anonymes** : Authentication → Providers → Anonymous.
    Personne ne remplit un formulaire avant d'avoir vu ce que l'outil fait de sa
    première photo ; le compte se rattache à un e-mail plus tard sans perdre les
@@ -142,7 +166,12 @@ Ce que le schéma garantit :
   pas faire passer le solde sous zéro ;
 - `grant_credits` est réservée au rôle `service_role` et **idempotente** sur
   l'identifiant de session Stripe : un webhook rejoué ne crédite pas deux fois ;
-- RLS partout, chacun ne lit que ses propres lignes ;
+- RLS partout, chacun ne lit que ses propres lignes, et les policies d'écriture
+  portent un `with check` : sans lui, un client peut modifier une de ses lignes
+  pour la réattribuer à un autre compte ;
+- les privilèges de table sont accordés explicitement à `authenticated` — selon
+  les réglages Data API du projet, les tables créées en SQL ne sont pas exposées
+  automatiquement, et le client reçoit sinon « permission denied » ;
 - aucune photo en base — uniquement identité, solde et métadonnées de lot.
 
 ### 2. Stripe

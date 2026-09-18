@@ -4,6 +4,15 @@
 -- l'identité, le solde de crédits et des métadonnées de lot. Le solde est
 -- exclusivement modifié par des fonctions SECURITY DEFINER : un client ne peut
 -- pas s'auto-créditer, même en forgeant ses requêtes.
+--
+-- Le fichier est rejouable : chaque objet est créé « if not exists » et chaque
+-- policy est déposée avant d'être recréée. Une application interrompue à
+-- mi-chemin se relance sans bricolage.
+--
+-- Note : on n'active pas FORCE ROW LEVEL SECURITY. Les fonctions ci-dessous
+-- sont SECURITY DEFINER et appartiennent au propriétaire des tables ; forcer
+-- la RLS les bloquerait aussi, et plus personne ne pourrait créditer ni
+-- débiter un compte.
 
 create extension if not exists "pgcrypto";
 
@@ -22,9 +31,13 @@ create table if not exists public.profiles (
 
 alter table public.profiles enable row level security;
 
+-- `(select auth.uid())` et pas `auth.uid()` : sans le sous-select, Postgres
+-- rappelle la fonction pour chaque ligne examinée.
+drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own"
   on public.profiles for select
-  using (auth.uid() = id);
+  to authenticated
+  using ((select auth.uid()) = id);
 
 -- Pas de policy insert/update/delete : le solde ne bouge que via les RPC.
 
@@ -38,14 +51,17 @@ create table if not exists public.credit_entries (
   created_at timestamptz not null default now()
 );
 
+-- Sert l'historique (trié par date) et la clé étrangère (colonne de tête).
 create index if not exists credit_entries_user_created_idx
   on public.credit_entries (user_id, created_at desc);
 
 alter table public.credit_entries enable row level security;
 
+drop policy if exists "credit_entries_select_own" on public.credit_entries;
 create policy "credit_entries_select_own"
   on public.credit_entries for select
-  using (auth.uid() = user_id);
+  to authenticated
+  using ((select auth.uid()) = user_id);
 
 -- --------------------------------------------------------------- achats ---
 
@@ -61,11 +77,18 @@ create table if not exists public.purchases (
   created_at timestamptz not null default now()
 );
 
+-- Postgres n'indexe pas les clés étrangères tout seul : sans ça, supprimer un
+-- compte scanne toute la table.
+create index if not exists purchases_user_created_idx
+  on public.purchases (user_id, created_at desc);
+
 alter table public.purchases enable row level security;
 
+drop policy if exists "purchases_select_own" on public.purchases;
 create policy "purchases_select_own"
   on public.purchases for select
-  using (auth.uid() = user_id);
+  to authenticated
+  using ((select auth.uid()) = user_id);
 
 -- ------------------------------------------------------------------ lots --
 -- Métadonnées seulement : ni originaux, ni rendus. C'est ce qui garde le coût
@@ -86,10 +109,32 @@ create index if not exists batches_user_created_idx
 
 alter table public.batches enable row level security;
 
-create policy "batches_select_own" on public.batches for select using (auth.uid() = user_id);
-create policy "batches_insert_own" on public.batches for insert with check (auth.uid() = user_id);
-create policy "batches_update_own" on public.batches for update using (auth.uid() = user_id);
-create policy "batches_delete_own" on public.batches for delete using (auth.uid() = user_id);
+drop policy if exists "batches_select_own" on public.batches;
+create policy "batches_select_own"
+  on public.batches for select
+  to authenticated
+  using ((select auth.uid()) = user_id);
+
+drop policy if exists "batches_insert_own" on public.batches;
+create policy "batches_insert_own"
+  on public.batches for insert
+  to authenticated
+  with check ((select auth.uid()) = user_id);
+
+-- `with check` autant que `using` : sans lui, un client peut modifier une de
+-- ses lignes pour la réattribuer à quelqu'un d'autre.
+drop policy if exists "batches_update_own" on public.batches;
+create policy "batches_update_own"
+  on public.batches for update
+  to authenticated
+  using ((select auth.uid()) = user_id)
+  with check ((select auth.uid()) = user_id);
+
+drop policy if exists "batches_delete_own" on public.batches;
+create policy "batches_delete_own"
+  on public.batches for delete
+  to authenticated
+  using ((select auth.uid()) = user_id);
 
 -- --------------------------------------------------- création du profil ---
 
@@ -122,6 +167,8 @@ declare
   uid uuid := auth.uid();
   remaining integer;
 begin
+  -- Contrôle d'identité explicite : la fonction contourne la RLS, elle ne doit
+  -- donc jamais faire confiance à son appelant sur ce point.
   if uid is null then
     raise exception 'not_authenticated' using errcode = '28000';
   end if;
@@ -150,7 +197,7 @@ grant execute on function public.spend_credits(integer, text) to authenticated;
 
 -- ------------------------------------------------------------ recharges ---
 
--- Réservé au service role : elle n'est appelée que par le webhook Stripe,
+-- Réservée au service role : elle n'est appelée que par le webhook Stripe,
 -- jamais depuis le navigateur.
 create or replace function public.grant_credits(
   target_user uuid,
@@ -198,4 +245,23 @@ end;
 $$;
 
 revoke all on function public.grant_credits(uuid, integer, text, text) from public;
-revoke all on function public.grant_credits(uuid, integer, text, text) from anon, authenticated;
+-- service_role contourne la RLS mais pas les privilèges : sans ce GRANT
+-- explicite, le webhook se prend un « permission denied for function ».
+grant execute on function public.grant_credits(uuid, integer, text, text) to service_role;
+
+-- ------------------------------------------------------------ privilèges --
+--
+-- La RLS dit quelles LIGNES sont visibles ; encore faut-il que le rôle ait le
+-- droit d'ouvrir la TABLE. Selon les réglages Data API du projet, les tables
+-- créées en SQL ne sont pas exposées automatiquement : sans ces GRANT, le
+-- client reçoit « permission denied for table profiles ».
+--
+-- Rien pour `anon` : même en connexion anonyme, un utilisateur Supabase porte
+-- le rôle `authenticated`. Rien en écriture sur profiles, credit_entries et
+-- purchases : elles ne se remplissent que par les fonctions ci-dessus.
+
+grant usage on schema public to anon, authenticated;
+grant select on public.profiles to authenticated;
+grant select on public.credit_entries to authenticated;
+grant select on public.purchases to authenticated;
+grant select, insert, update, delete on public.batches to authenticated;
