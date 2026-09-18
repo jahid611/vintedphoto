@@ -121,6 +121,18 @@ claude /mcp       # sélectionner « supabase », puis Authenticate
 Une fois authentifié, l'agent peut appliquer les migrations et lire les logs
 du projet directement, au lieu de passer par le SQL Editor.
 
+Le serveur est volontairement limité à `docs,database,debugging,development` :
+
+| Gardé | Pourquoi |
+|---|---|
+| `database` | appliquer les migrations, inspecter les tables |
+| `debugging` | logs et advisors quand une policy RLS surprend |
+| `development` | récupérer l'URL et la clé du projet, générer les types TS |
+| `docs` | Supabase bouge vite, la doc à jour évite les API inventées |
+
+Écartés : `account` (créer, mettre en pause ou facturer des projets de toute
+l'organisation), `functions` et `branching`, dont ce projet ne se sert pas.
+
 Ce que le schéma garantit :
 
 - le solde n'est modifiable que par les fonctions `spend_credits` et
