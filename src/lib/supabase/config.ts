@@ -8,3 +8,13 @@ export const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''
  * localStorage pour se créditer à l'infini.
  */
 export const supabaseEnabled = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY)
+
+/**
+ * Tout Dripshot vit dans son propre schéma Postgres, parce que le projet
+ * Supabase héberge aussi une autre application : aucune collision possible
+ * avec son `public`, et tout se défait d'un `drop schema dripshot cascade`.
+ *
+ * Il doit être déclaré dans Data API → Exposed schemas, sinon PostgREST ne
+ * sert rien.
+ */
+export const SUPABASE_SCHEMA = 'dripshot'

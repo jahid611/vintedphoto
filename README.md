@@ -102,16 +102,22 @@ npm run db-test
 `supabase/tests/stub.sql` recrée le minimum de l'environnement Supabase (schéma
 `auth`, `auth.uid()`, les rôles `anon` / `authenticated` / `service_role`), puis
 la migration est appliquée **deux fois** (elle doit être idempotente) avant les
-17 assertions de `supabase/tests/schema.test.sql` :
+24 assertions de `supabase/tests/schema.test.sql` :
 
-- l'inscription crédite bien 10 photos et ouvre l'historique ;
+- le premier usage ouvre le compte avec 10 crédits, le second ne redonne rien ;
 - le débit refuse un solde insuffisant et un appel non authentifié ;
-- un compte ne voit ni le profil ni l'historique du voisin ;
+- un compte ne voit ni le compte ni l'historique du voisin ;
 - un lot ne peut être ni créé ni réattribué au nom de quelqu'un d'autre ;
-- un client ne peut pas appeler la recharge, le webhook si — et un rejeu Stripe
-  ne crédite pas deux fois ;
+- un client ne peut appeler ni la recharge ni les fonctions internes, le
+  webhook si — et un rejeu Stripe ne crédite pas deux fois ;
+- **rien n'est posé hors du schéma `dripshot`** : ni table, ni fonction dans
+  `public`, ni trigger sur `auth.users` ;
 - toutes les clés étrangères sont indexées, toutes les tables ont la RLS, et
   aucune policy ne rappelle `auth.uid()` ligne par ligne.
+
+C'est cette suite qui a rattrapé le `GRANT` manquant à `service_role` sur
+`purchases` : la route de paiement insère l'intention d'achat en direct, et
+sans ce privilège aucune session Stripe n'aurait pu être créée.
 
 ## Passer en production
 
@@ -124,12 +130,23 @@ Le solde doit faire autorité côté serveur : en mode démo il suffit d'éditer
 2. Appliquer `supabase/migrations/0001_init.sql` (SQL Editor, ou
    `supabase db push`). Le fichier est idempotent : une application
    interrompue se relance sans rien nettoyer à la main.
-3. Activer les **connexions anonymes** : Authentication → Providers → Anonymous.
+3. **Data API → Exposed schemas → ajouter `dripshot`.** Sans ça, PostgREST ne
+   sert aucune table et le client ne voit rien.
+4. Activer les **connexions anonymes** : Authentication → Providers → Anonymous.
    Personne ne remplit un formulaire avant d'avoir vu ce que l'outil fait de sa
    première photo ; le compte se rattache à un e-mail plus tard sans perdre les
    crédits.
-4. Renseigner `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` et
+5. Renseigner `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` et
    `SUPABASE_SERVICE_ROLE_KEY` (voir `.env.example`).
+
+Tout vit dans un **schéma Postgres dédié**, `dripshot`, et non dans `public` :
+le projet peut héberger une autre application sans risque de collision de
+noms, et l'ensemble se défait d'un `drop schema dripshot cascade`. La migration
+ne pose ni trigger sur `auth.users`, ni extension, ni quoi que ce soit dans
+`public` — un test le vérifie. Le compte est ouvert au premier usage
+(`ensure_account`) plutôt qu'à l'inscription : un trigger partagé sur
+`auth.users` marcherait, mais une erreur de notre côté casserait l'inscription
+de l'application voisine.
 
 ### 1 bis. Outillage agent (facultatif)
 
@@ -161,7 +178,7 @@ Ce que le schéma garantit :
 
 - le solde n'est modifiable que par les fonctions `spend_credits` et
   `grant_credits` (`SECURITY DEFINER`) — aucune policy d'écriture directe sur
-  `profiles` ;
+  `accounts` ;
 - `spend_credits` débite de façon atomique : deux exports simultanés ne peuvent
   pas faire passer le solde sous zéro ;
 - `grant_credits` est réservée au rôle `service_role` et **idempotente** sur
@@ -169,9 +186,9 @@ Ce que le schéma garantit :
 - RLS partout, chacun ne lit que ses propres lignes, et les policies d'écriture
   portent un `with check` : sans lui, un client peut modifier une de ses lignes
   pour la réattribuer à un autre compte ;
-- les privilèges de table sont accordés explicitement à `authenticated` — selon
-  les réglages Data API du projet, les tables créées en SQL ne sont pas exposées
-  automatiquement, et le client reçoit sinon « permission denied » ;
+- les privilèges sont accordés explicitement, schéma par schéma et table par
+  table : un schéma personnalisé n'accorde rien tout seul, ni à `authenticated`
+  ni à `service_role`, et le client reçoit sinon « permission denied » ;
 - aucune photo en base — uniquement identité, solde et métadonnées de lot.
 
 ### 2. Stripe

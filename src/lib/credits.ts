@@ -82,8 +82,11 @@ async function load(): Promise<void> {
       return
     }
 
-    const [profile, rows] = await Promise.all([
-      supabase.from('profiles').select('credits').eq('id', userId).maybeSingle(),
+    // `ensure_account` ouvre le compte au premier passage et renvoie le solde.
+    // Pas de trigger sur `auth.users` : le projet Supabase héberge une autre
+    // app, et une erreur dans un trigger partagé casserait son inscription.
+    const [account, rows] = await Promise.all([
+      supabase.rpc('ensure_account'),
       supabase
         .from('credit_entries')
         .select('id,label,delta,created_at')
@@ -93,7 +96,7 @@ async function load(): Promise<void> {
     ])
 
     publish({
-      balance: (profile.data?.credits as number | undefined) ?? 0,
+      balance: typeof account.data === 'number' ? account.data : 0,
       entries: ((rows.data ?? []) as { id: string; label: string; delta: number; created_at: string }[]).map(
         (row) => ({ id: row.id, label: row.label, delta: row.delta, at: Date.parse(row.created_at) }),
       ),

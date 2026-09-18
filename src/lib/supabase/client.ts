@@ -1,14 +1,21 @@
 'use client'
 
 import { createBrowserClient } from '@supabase/ssr'
-import type { SupabaseClient } from '@supabase/supabase-js'
-import { SUPABASE_ANON_KEY, SUPABASE_URL, supabaseEnabled } from './config'
+import { SUPABASE_ANON_KEY, SUPABASE_SCHEMA, SUPABASE_URL, supabaseEnabled } from './config'
 
-let client: SupabaseClient | null = null
+// Le type est inféré depuis l'appel : annoter `SupabaseClient` fige le schéma
+// sur `public`, alors que tout Dripshot vit dans le sien.
+function createClient() {
+  return createBrowserClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    db: { schema: SUPABASE_SCHEMA },
+  })
+}
 
-export function getSupabase(): SupabaseClient | null {
+let client: ReturnType<typeof createClient> | null = null
+
+export function getSupabase() {
   if (!supabaseEnabled) return null
-  client ??= createBrowserClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  client ??= createClient()
   return client
 }
 
