@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260 56" width="260" height="56" role="img" aria-label="Dripshot">
+  <title>Dripshot</title>
+  <style>
+    @import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,800&amp;display=swap");
+    .wordmark {
+      font-family: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+      font-weight: 800;
+      font-size: 38px;
+      letter-spacing: -1.7px;
+      fill: #0e1a1b;
+    }
+  </style>
+  <rect x="0" y="4" width="48" height="48" rx="11" fill="#007782"/>
+  <g transform="translate(6.72 10.72) scale(0.72)">
+    <circle cx="24" cy="12.4" r="5.2" fill="none" stroke="#ffffff" stroke-width="4.2"/>
+    <path d="M24 17.6 6.9 32.3A2.6 2.6 0 0 0 8.6 36.9h30.8a2.6 2.6 0 0 0 1.7-4.6L24 17.6Z" fill="#ffffff"/>
+  </g>
+  <text class="wordmark" x="62" y="41">dripshot</text>
+</svg>

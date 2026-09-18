@@ -1,0 +1,145 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+   Charte Dripshot — famille teal (proche de l'univers Vinted / Depop),
+   encre froide, accent corail, jeton doré. Voir DESIGN.md.
+--------------------------------------------------------------------------- */
+
+@theme {
+  --color-brand-900: #073b3f;
+  --color-brand-800: #00565e;
+  --color-brand-700: #007782;
+  --color-brand-500: #09b1ba;
+  --color-brand-200: #a9e3e6;
+  --color-brand-50: #ecf8f8;
+
+  /* Accents fonctionnels en pastel : un fond doux + une encre de la meme
+     teinte, lisible sur le pastel comme sur le blanc (>= 4.9:1). */
+  --color-drip-soft: #ffcfc4;
+  --color-drip-ink: #9b3624;
+  --color-credit-soft: #ffe3ae;
+  --color-credit-ink: #8a5b00;
+  --color-success-soft: #c6e9d4;
+  --color-success-ink: #1c6b41;
+  --color-danger-soft: #f9c9c6;
+  --color-danger-ink: #a02419;
+
+  --font-display: var(--font-display-loaded), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-sans-loaded), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-pill: 999px;
+  --radius-card: 20px;
+  --radius-field: 14px;
+  --radius-thumb: 12px;
+
+  /* Tokens sémantiques : ils basculent en mode sombre (voir plus bas). */
+  --color-app-bg: var(--app-bg);
+  --color-app-card: var(--app-card);
+  --color-app-sunken: var(--app-sunken);
+  --color-app-text: var(--app-text);
+  --color-app-muted: var(--app-muted);
+  --color-app-line: var(--app-line);
+  --color-app-brand: var(--app-brand);
+  --color-app-brand-soft: var(--app-brand-soft);
+  --color-app-on-brand: var(--app-on-brand);
+}
+
+:root {
+  --app-bg: #f3f7f7;
+  --app-card: #ffffff;
+  --app-sunken: #f3f7f7;
+  --app-text: #0e1a1b;
+  --app-muted: #4a5c5d;
+  --app-line: #e4eded;
+  --app-brand: #007782;
+  --app-brand-soft: #ecf8f8;
+  --app-on-brand: #ffffff;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --app-bg: #0b1415;
+    --app-card: #132022;
+    --app-sunken: #0b1415;
+    --app-text: #e8f2f2;
+    --app-muted: #8fa3a4;
+    --app-line: #1c2c2e;
+    --app-brand: #09b1ba;
+    --app-brand-soft: #132a2c;
+    --app-on-brand: #0b1415;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --app-bg: #0b1415;
+  --app-card: #132022;
+  --app-sunken: #0b1415;
+  --app-text: #e8f2f2;
+  --app-muted: #8fa3a4;
+  --app-line: #1c2c2e;
+  --app-brand: #09b1ba;
+  --app-brand-soft: #132a2c;
+  --app-on-brand: #0b1415;
+  color-scheme: dark;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background: var(--app-bg);
+  color: var(--app-text);
+  font-family: var(--font-sans);
+  overscroll-behavior-y: none;
+}
+
+/* L'app est mobile-first : au-delà de 520px on garde la colonne centrée
+   plutôt que d'étirer une UI pensée pour le pouce. */
+.app-shell {
+  margin-inline: auto;
+  width: 100%;
+  max-width: 520px;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--app-bg);
+}
+
+@media (min-width: 560px) {
+  body {
+    background: color-mix(in srgb, var(--app-bg) 70%, #000 6%);
+  }
+  .app-shell {
+    box-shadow: 0 0 0 1px var(--app-line);
+  }
+}
+
+input[type="range"] {
+  accent-color: var(--app-brand);
+  height: 28px;
+  width: 100%;
+}
+
+.checkerboard {
+  background-image:
+    linear-gradient(45deg, #e9efef 25%, transparent 25%),
+    linear-gradient(-45deg, #e9efef 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #e9efef 75%),
+    linear-gradient(-45deg, transparent 75%, #e9efef 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+  background-color: #ffffff;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner {
+  animation: spin 0.9s linear infinite;
+}
