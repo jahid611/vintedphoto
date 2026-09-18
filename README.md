@@ -107,6 +107,20 @@ Le solde doit faire autorité côté serveur : en mode démo il suffit d'éditer
 4. Renseigner `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` et
    `SUPABASE_SERVICE_ROLE_KEY` (voir `.env.example`).
 
+### 1 bis. Outillage agent (facultatif)
+
+`.mcp.json` déclare le **serveur MCP Supabase** du projet, et `.agents/skills/`
+contient les *agent skills* officielles (documentation seule, aucun script).
+L'authentification du serveur MCP est un flux OAuth navigateur : elle se fait
+depuis un terminal local, pas depuis une session distante.
+
+```bash
+claude /mcp       # sélectionner « supabase », puis Authenticate
+```
+
+Une fois authentifié, l'agent peut appliquer les migrations et lire les logs
+du projet directement, au lieu de passer par le SQL Editor.
+
 Ce que le schéma garantit :
 
 - le solde n'est modifiable que par les fonctions `spend_credits` et
